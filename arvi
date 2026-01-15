@@ -1,0 +1,225 @@
+#!/usr/bin/env python3
+from datetime import date
+from pathlib import Path
+import sys
+import os
+
+# ===== configuración =====
+BASE = Path.home() / "arvi"
+START_YEAR = 2026
+EDITOR = os.environ.get("EDITOR", "nano")
+PREVIEW_LEN = 80
+
+RESET = "\033[0m"
+INVERT = "\033[7m"
+
+# ===== fecha real =====
+today = date.today()
+year_index = today.year - START_YEAR
+d = today.timetuple().tm_yday  # 1–365
+
+# ===== algoritmo Arvi =====
+# A00 = Year Day (1 de enero)
+is_year_day = (d == 1)
+
+if not is_year_day:
+    d2 = d - 2
+    M = d2 // 14
+    D = (d2 % 14) + 1
+    current_letter = chr(ord('A') + M)
+else:
+    current_letter = None
+    D = None
+
+# ===== utilidades =====
+def shift_month(letter, year, delta):
+    m = ord(letter) - ord('A') + delta
+    if m < 0:
+        m += 26
+        year -= 1
+    elif m > 25:
+        m -= 26
+        year += 1
+    return chr(ord('A') + m), year
+
+def year_dir(year):
+    path = BASE / f"{year:02d}"
+    path.mkdir(parents=True, exist_ok=True)
+    return path
+
+def render_month(letter, year):
+    YEAR_DIR = year_dir(year)
+    rows = ["", ""]
+
+    for i in range(1, 15):
+        tag = f"{letter}{i:02d}"
+        file = YEAR_DIR / f"{tag}.txt"
+        mark = "*" if file.exists() else " "
+        cell = f"{tag}{mark}"
+
+        if (
+            not is_year_day
+            and letter == current_letter
+            and i == D
+            and year == year_index
+        ):
+            cell = f"{INVERT}{cell}{RESET}"
+
+        row = 0 if i <= 7 else 1
+        rows[row] += cell + " "
+
+    return rows
+
+# ===== vistas =====
+def show_month(letter, year):
+    print(f"Año {year:02d} · Mes {letter}\n")
+    rows = render_month(letter, year)
+    print(rows[0])
+    print(rows[1])
+    print()
+
+def show_month_pair(letter, year):
+    show_month(letter, year)
+    next_letter, next_year = shift_month(letter, year, +1)
+    show_month(next_letter, next_year)
+
+def edit_day(tag, year):
+    YEAR_DIR = year_dir(year)
+    file = YEAR_DIR / f"{tag}.txt"
+    os.system(f"{EDITOR} {file}")
+
+def show_today():
+    if is_year_day:
+        print("\nHOY: A00  (Year Day)\n")
+    else:
+        print(f"\nHOY: {current_letter}{D:02d}\n")
+
+# ===== búsqueda con preview y etiqueta =====
+def search_tag(tag):
+    tag = tag.upper()
+    print(f"\nBuscando #{tag} en Arvi:\n")
+
+    results = []
+
+    for ydir in sorted(BASE.iterdir()):
+        if not ydir.is_dir():
+            continue
+
+        year = ydir.name
+
+        for file in sorted(ydir.glob("*.txt")):
+            try:
+                lines = file.read_text().splitlines()
+            except UnicodeDecodeError:
+                continue
+
+            i = 0
+            while i < len(lines):
+                line = lines[i].strip()
+
+                if line == f"#{tag}":
+                    block = []
+                    preview = None
+                    j = i + 1
+
+                    # bloque estructurado
+                    while j < len(lines):
+                        nl = lines[j].strip()
+                        if nl.startswith("#"):
+                            block.append(nl[1:])
+                            j += 1
+                        else:
+                            break
+
+                    # preview: primera línea normal
+                    k = j
+                    while k < len(lines):
+                        txt = lines[k].strip()
+                        if txt:
+                            preview = txt[:PREVIEW_LEN]
+                            if len(txt) > PREVIEW_LEN:
+                                preview += "…"
+                            break
+                        k += 1
+
+                    results.append((year, file.stem, block, preview))
+                    i = j
+                else:
+                    i += 1
+
+    if not results:
+        print("No se encontraron entradas.")
+        return
+
+    labels = ["Nº", "Título", "Autor", "Formato"]
+
+    for year, day, block, preview in results:
+        print(f"{year}/{day}")
+        print(f"  #{tag}")
+
+        for idx, value in enumerate(block):
+            if idx < len(labels):
+                print(f"  {labels[idx]}: {value}")
+            else:
+                print(f"  {value}")
+
+        if preview:
+            print(f"  → {preview}")
+
+        print()
+
+# ===== lógica principal =====
+args = sys.argv[1:]
+
+if not args:
+    show_today()
+    if not is_year_day:
+        show_month(current_letter, year_index)
+
+elif len(args) == 2 and args[0] == "search":
+    search_tag(args[1])
+
+elif len(args) == 2 and args[0].lstrip("-").isdigit():
+    year = int(args[0])
+    tag = args[1].upper()
+
+    if len(tag) == 1 and tag.isalpha():
+        show_month(tag, year)
+    elif len(tag) == 3 and tag[0].isalpha() and tag[1:].isdigit():
+        edit_day(tag, year)
+    else:
+        print("Formato inválido.")
+
+elif args[0] == "today":
+    show_today()
+
+elif args[0] == "next" and not is_year_day:
+    letter, year = shift_month(current_letter, year_index, +1)
+    show_month(letter, year)
+
+elif args[0] == "prev" and not is_year_day:
+    letter, year = shift_month(current_letter, year_index, -1)
+    show_month(letter, year)
+
+elif args[0] == "pair" and not is_year_day:
+    show_month_pair(current_letter, year_index)
+
+elif len(args) == 1:
+    arg = args[0].upper()
+
+    if len(arg) == 1 and arg.isalpha():
+        show_month(arg, year_index)
+    elif len(arg) == 3 and arg[0].isalpha() and arg[1:].isdigit():
+        edit_day(arg, year_index)
+    else:
+        print("Uso:")
+        print("  arvi                → hoy + mes actual")
+        print("  arvi today          → mostrar día Arvi")
+        print("  arvi pair           → mes actual + siguiente")
+        print("  arvi next           → mes siguiente")
+        print("  arvi prev           → mes anterior")
+        print("  arvi Y              → mostrar mes Y")
+        print("  arvi Y12            → editar nota de Y12")
+        print("  arvi YEAR Y         → mostrar mes Y de otro año")
+        print("  arvi YEAR Y12       → editar nota de otro año")
+        print("  arvi search TAG     → buscar #TAG con preview")
