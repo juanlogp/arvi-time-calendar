@@ -7,7 +7,7 @@ import os
 # ===== configuración =====
 BASE = Path.home() / "arvi"
 START_YEAR = 2026
-EDITOR = os.environ.get("EDITOR", "nano")
+EDITOR = os.environ.get("EDITOR", "subl")
 PREVIEW_LEN = 80
 
 RESET = "\033[0m"
@@ -56,7 +56,7 @@ def render_month(letter, year):
         file = YEAR_DIR / f"{tag}.txt"
         mark = "*" if file.exists() else " "
         cell = f"{tag}{mark}"
-
+  
         if (
             not is_year_day
             and letter == current_letter
@@ -93,10 +93,9 @@ def show_today():
         print("\nHOY: A00  (Year Day)\n")
     else:
         print(f"\nHOY: {current_letter}{D:02d}\n")
-
 # ===== búsqueda con preview y etiqueta =====
 def search_tag(tag):
-    tag = tag.upper()
+    tag = tag.casefold()
     print(f"\nBuscando #{tag} en Arvi:\n")
 
     results = []
@@ -117,7 +116,7 @@ def search_tag(tag):
             while i < len(lines):
                 line = lines[i].strip()
 
-                if line == f"#{tag}":
+                if line.casefold() == f"#{tag}":
                     block = []
                     preview = None
                     j = i + 1
@@ -125,6 +124,7 @@ def search_tag(tag):
                     # bloque estructurado
                     while j < len(lines):
                         nl = lines[j].strip()
+
                         if nl.startswith("#"):
                             block.append(nl[1:])
                             j += 1
@@ -135,15 +135,20 @@ def search_tag(tag):
                     k = j
                     while k < len(lines):
                         txt = lines[k].strip()
+
                         if txt:
                             preview = txt[:PREVIEW_LEN]
+
                             if len(txt) > PREVIEW_LEN:
                                 preview += "…"
+
                             break
+
                         k += 1
 
                     results.append((year, file.stem, block, preview))
                     i = j
+
                 else:
                     i += 1
 
@@ -151,7 +156,7 @@ def search_tag(tag):
         print("No se encontraron entradas.")
         return
 
-    labels = ["Nº", "Título", "Autor", "Formato"]
+    labels = ["Título", "Autor", "Formato"]
 
     for year, day, block, preview in results:
         print(f"{year}/{day}")
