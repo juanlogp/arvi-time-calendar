@@ -53,7 +53,7 @@ def render_month(letter, year):
 
     for i in range(1, 15):
         tag = f"{letter}{i:02d}"
-        file = YEAR_DIR / f"{tag}.txt"
+        file = YEAR_DIR / f"{tag}.md"
         mark = "*" if file.exists() else " "
         cell = f"{tag}{mark}"
   
@@ -85,7 +85,7 @@ def show_month_pair(letter, year):
 
 def edit_day(tag, year):
     YEAR_DIR = year_dir(year)
-    file = YEAR_DIR / f"{tag}.txt"
+    file = YEAR_DIR / f"{tag}.md"
     os.system(f"{EDITOR} {file}")
 
 def show_today():
@@ -106,7 +106,7 @@ def search_tag(tag):
 
         year = ydir.name
 
-        for file in sorted(ydir.glob("*.txt")):
+        for file in sorted(ydir.glob("*.md")):
             try:
                 lines = file.read_text().splitlines()
             except UnicodeDecodeError:
